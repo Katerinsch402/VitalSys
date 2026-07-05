@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 
 return [
 
@@ -108,7 +108,7 @@ return [
 
     'menu' => [
 
-        // ── INICIO ──────────────────────────────────────
+        // -- INICIO --------------------------------------------------
         [
             'text' => 'Panel Principal',
             'url'  => '/',
@@ -116,8 +116,8 @@ return [
             'icon_color' => 'cyan',
         ],
 
-        // ── GESTIÓN MÉDICA ───────────────────────────────
-        ['header' => 'GESTIÓN MÉDICA'],
+        // -- GESTION MEDICA --------------------------------------------------
+        ['header' => 'GESTION MEDICA'],
 
         [
             'text'  => 'Citas',
@@ -148,8 +148,8 @@ return [
             'can'   => 'crear especialidades',
         ],
 
-        // ── CONFIGURACIÓN ────────────────────────────────
-        ['header' => 'CONFIGURACIÓN'],
+        // -- CONFIGURACION --------------------------------------------------
+        ['header' => 'CONFIGURACION'],
 
         [
             'text'  => 'Salas',
@@ -159,7 +159,7 @@ return [
             'can'   => 'crear salas',
         ],
         [
-            'text'    => 'Ubicación',
+            'text'    => 'Ubicacion',
             'icon'    => 'fas fa-fw fa-map-marked-alt',
             'icon_color' => 'yellow',
             'can'     => 'crear departamentos',
@@ -181,12 +181,6 @@ return [
             'icon'    => 'fas fa-fw fa-list-alt',
             'icon_color' => 'yellow',
             'submenu' => [
-                [
-                    'text'  => 'Tipos de Enfermedad',
-                    'route' => 'tipos-enfermedad.index',
-                    'icon'  => 'fas fa-fw fa-virus',
-                    'can'   => 'ver tipo_enfermedad',
-                ],
                 [
                     'text'  => 'Tipos de Consulta',
                     'route' => 'tipos-consulta.index',

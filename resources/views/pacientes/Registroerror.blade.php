@@ -57,7 +57,7 @@
             @csrf
             <div class="row">
                 <div class="col-3 mb-4">
-                    <input type="text" name="cod_paciente" id="cod_paciente"  value="{{$datos['cod_paciente']}}" placeholder="Codigo del paciente" class="form-control" required> <br>
+                    <input type="text" name="cod_paciente" id="cod_paciente"  value="{{ $datos['cod_paciente'] ?? old('cod_paciente') ?? '' }}" placeholder="Codigo del paciente" class="form-control" required> <br>
                 </div>
                 <div class="col-3 mb-4">
                     <span>Último codigo usado: </span>
@@ -67,35 +67,36 @@
             
             <div class="row">
                 <div class="col-6">
-                    <input type="text" name="nombre" id="nombre" value="{{$datos['nombre']}}" placeholder="Nombre(s)" class="form-control" required><br>
+                    <input type="text" name="nombre" id="nombre" value="{{ $datos['nombre'] ?? old('nombre') ?? '' }}" placeholder="Nombre(s)" class="form-control" required><br>
                 </div>
                 <div class="col-6">
-                    <input type="text" name="apellido" id="apellido" value="{{$datos['apellido']}}" placeholder="Apellido(s)" class="form-control" required><br>
+                    <input type="text" name="apellido" id="apellido" value="{{ $datos['apellido'] ?? old('apellido') ?? '' }}" placeholder="Apellido(s)" class="form-control" required><br>
                 </div >
             </div>
 
             <div class="row">
                 <div class="col-3">
-                    <input type="text" name="num_doc" id="num_doc" value="{{$datos['num_doc']}}" placeholder="Cedula de identidad" class="form-control"required><br>
+                    <input type="text" name="num_doc" id="num_doc" value="{{ $datos['num_doc'] ?? old('num_doc') ?? '' }}" placeholder="Cedula de identidad" class="form-control"required><br>
                 </div>
                 <div class="col-3">
                     <select name="sexo" id="sexo" class="form-control" required>
                         <option value="">Sexo</option>
-                        <option value="masculino" <?php if($datos['sexo'] == 'masculino'){print('selected');} ?>>Masculino</option>
-                        <option value="femenino" <?php if($datos['sexo'] == 'femenino'){print('selected');} ?>>Femenino</option>
+                        <option value="masculino" {{ (isset($datos['sexo']) && $datos['sexo'] == 'masculino') ? 'selected' : ((old('sexo')=='masculino') ? 'selected' : '') }}>Masculino</option>
+                        <option value="femenino" {{ (isset($datos['sexo']) && $datos['sexo'] == 'femenino') ? 'selected' : ((old('sexo')=='femenino') ? 'selected' : '') }}>Femenino</option>
                     </select>
                 </div>
                 <div class="col-6">
-                    <input type="text" name="direccion" id="direccion" value="{{$datos['direccion']}}" placeholder="Direccion" class="form-control" required> <br>
+                    <input type="text" name="direccion" id="direccion" value="{{ $datos['direccion'] ?? old('direccion') ?? '' }}" placeholder="Direccion" class="form-control" required> <br>
                 </div>
             </div>
 
             <div class="row">
                 <div class="col-6"> 
-                    <input type="text" name="url_maps" id="url_maps" value="{{$datos['url_maps']}}" placeholder="URL Maps" class="form-control" required><br>
+                    <input type="text" name="url_maps" id="url_maps" value="{{ $datos['url_maps'] ?? old('url_maps') ?? '' }}" placeholder="URL Maps" class="form-control">
+                    <br>
                 </div>
                 <div class="col-6"> 
-                    <input type="text" name="edad" id="edad" value="{{$datos['edad']}}" placeholder="Edad" class="form-control" required><br>
+                    <input type="text" name="edad" id="edad" value="{{ $datos['edad'] ?? old('edad') ?? '' }}" placeholder="Edad" class="form-control" required><br>
                 </div>
 
             </div>
@@ -105,14 +106,14 @@
                     <select name="departamento" id="departamento" class="form-control" required>
                         <option value="">Departamento</option>
                         @foreach($departamentos as $departamento)
-                            <option value="{{ $departamento->id_departamento}}" <?php if($datos['departamento'] == $departamento->id_departamento){print('selected');} ?> >{{ $departamento->nombre }}</option>
+                            <option value="{{ $departamento->id_departamento}}" {{ (isset($datos['departamento']) && $datos['departamento'] == $departamento->id_departamento) ? 'selected' : ((old('departamento') == $departamento->id_departamento) ? 'selected' : '') }}>{{ $departamento->nombre }}</option>
                         @endforeach
                     </select><br>
                 </div>
                 <div class="col-6">
                     <select name="ciudad" id="ciudad" class="form-control">
                         @foreach($ciudad as $c)
-                        <option value="{{ $c->id_ciudad}}" <?php if($datos['ciudad'] == $c->id_ciudad){print('selected');} ?>>{{ $c->nombre }}</option>
+                        <option value="{{ $c->id_ciudad}}" {{ (isset($datos['ciudad']) && $datos['ciudad'] == $c->id_ciudad) ? 'selected' : ((old('ciudad') == $c->id_ciudad) ? 'selected' : '') }}>{{ $c->nombre }}</option>
                         @endforeach
                     </select><br>
                 </div>
@@ -120,25 +121,25 @@
 
             <div class="row">
                 <div class="col-4">
-                    <input type="text" name="tiene_IPS" id="tiene_IPS" value="{{$datos['tiene_IPS']}}" placeholder="IPS" class="form-control" required>
+                    <input type="text" name="tiene_IPS" id="tiene_IPS" value="{{ $datos['tiene_IPS'] ?? old('tiene_IPS') ?? '' }}" placeholder="IPS" class="form-control" required>
                 </div>
                 <div class="col-4">
                     <label for="tipo_enfermedad">Tipo de Enfermedad:</label>
                     <select multiple name="tipo_enfermedad[]" id="tipo_enfermedad" class="form-control"  >
                         @foreach($enfermedad as $c)
-                        <option value="{{ $c->id_tipo}}"<?php foreach ($datos['tipo_enfermedad'] as $d){if($d == $c->id_tipo){print('selected');} }?>  >{{ $c->tipo_enfermedad}} - {{ $c->etapa_enfermedad}}</option>
+                        <option value="{{ $c->id_tipo}}" {{ in_array($c->id_tipo, (array)($datos['tipo_enfermedad'] ?? old('tipo_enfermedad') ?? [])) ? 'selected' : '' }}>{{ $c->tipo_enfermedad}} - {{ $c->etapa_enfermedad}}</option>
                         @endforeach
                     </select><br>
             </div>
          </div>
             <div class="form-group">
                 <label for="diagnostico">Diagnostico: </label>
-                <textarea name="diagnostico" id="diagnostico" cols="15" rows="5" class="form-control">{{$datos['diagnostico']}}</textarea>
+                <textarea name="diagnostico" id="diagnostico" cols="15" rows="5" class="form-control">{{ $datos['diagnostico'] ?? old('diagnostico') ?? '' }}</textarea>
             </div>
 
             <div class="form-group">
                 <label for="comentario">Comentario: </label>
-                <textarea name="comentario" id="comentario"  cols="15" rows="5" class="form-control">{{$datos['comentario']}}</textarea>
+                <textarea name="comentario" id="comentario"  cols="15" rows="5" class="form-control">{{ $datos['comentario'] ?? old('comentario') ?? '' }}</textarea>
             </div>
             <div class="form-submit-group mb-4">
                 <button type="submit" class="btn btn-guardar">Guardar</button>

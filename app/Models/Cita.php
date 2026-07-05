@@ -19,6 +19,10 @@ class Cita extends Model
         'sala_id',
     ];
 
+    protected $attributes = [
+        'estado' => 'Pendiente',
+    ];
+
     public function medico()
     {
         return $this->belongsTo(Medico::class, 'medico_id', 'id_medico');
@@ -42,7 +46,7 @@ class Cita extends Model
     public static function markOverdueAsConcluded(): int
     {
         return static::where('estado', 'Pendiente')
-            ->where('fec_inicio', '<=', now()->subMinutes(15))
-            ->update(['estado' => 'concluido']);
+            ->where('fec_fin', '<', now())
+            ->update(['estado' => 'Concluido']);
     }
 }

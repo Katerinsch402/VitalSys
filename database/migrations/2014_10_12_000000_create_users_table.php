@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
@@ -7,9 +7,6 @@ use App\Models\User;
 
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
     public function up(): void
     {
         Schema::create('users', function (Blueprint $table) {
@@ -20,13 +17,14 @@ return new class extends Migration
             $table->string('password');
             $table->string('rol');
             $table->unsignedBigInteger('doc_id')->nullable();
+            $table->string('estado')->default('activo');
             $table->rememberToken();
             $table->timestamps();
         });
 
         User::create([
             'name' => 'Admin',
-            'email' => 'admin@vitalsys.com',
+            'email' => 'vitalsys3@gmail.com',
             'rol' => 'admin',
             'doc_id' => null,
             'estado' => 'activo',
@@ -34,9 +32,6 @@ return new class extends Migration
         ]);
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
         Schema::dropIfExists('users');

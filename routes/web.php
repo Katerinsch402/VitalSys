@@ -11,7 +11,6 @@ use App\Http\Controllers\CitaController;
 use App\Http\Controllers\CiudadController;
 use App\Http\Controllers\DepartamentoController;
 use App\Http\Controllers\SalaController;
-use App\Http\Controllers\TipoEnfermedadController;
 use App\Http\Controllers\TipoConsultaController;
 use App\Http\Controllers\UsuarioController;
 
@@ -31,6 +30,7 @@ Route::post('/citas', [CitaController::class, 'store'])->name('citas.store')->mi
 Route::get('/citas/ver', [CitaController::class, 'show'])->middleware(['auth', 'verified']);
 Route::get('/citas/editar/{id}', [CitaController::class, 'edit'])->middleware(['auth', 'verified']);
 Route::get('/citas/atendido/{id}', [CitaController::class, 'atendido'])->middleware(['auth', 'verified']);
+Route::get('/citas/concluir/{id}', [CitaController::class, 'concluir'])->middleware(['auth', 'verified']);
 Route::get('/citas/cancelar/{id}', [CitaController::class, 'cancelar'])->middleware(['auth', 'verified']);
 Route::post('/citas/actualizar', [CitaController::class, 'update'])->middleware(['auth', 'verified']);
 Route::get('/citas/reportes', [PacientesController::class, 'reportes'])->name('citas.reportes')->middleware(['auth', 'verified']);
@@ -69,9 +69,6 @@ Route::group(['middleware' => ['role:admin']], function () {
 
     // ---- DEPARTAMENTOS -----
     Route::resource('departamentos', DepartamentoController::class)->middleware(['auth', 'verified']);
-
-    // ---- TIPOS DE ENFERMEDAD -----
-    Route::resource('tipos-enfermedad', TipoEnfermedadController::class)->middleware(['auth', 'verified']);
 
     // ---- TIPOS DE CONSULTAS -----
     Route::resource('tipos-consulta', TipoConsultaController::class)->middleware(['auth', 'verified']);

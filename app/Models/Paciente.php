@@ -23,11 +23,6 @@ class Paciente extends Model
         'comentario'
     ];
 
-    public function tiposDeEnfermedad()
-    {
-        return $this->belongsToMany(TipoDeEnfermedad::class, 'paciente_tipo_enfermedad', 'paciente_id', 'tipo_enfermedad_id');
-    }
-
     public function citas()
     {
         return $this->hasMany(Cita::class, 'paciente_id', 'id_paciente');

@@ -19,7 +19,7 @@ class UpdatePendingCitasStatus extends Command
      *
      * @var string
      */
-    protected $description = 'Actualizar el estado de las citas pendientes a concluido cuando hayan pasado 15 minutos desde el inicio.';
+    protected $description = 'Actualizar el estado de las citas pendientes a concluido cuando ya haya pasado el tiempo de fin de la cita.';
 
     /**
      * Execute the console command.

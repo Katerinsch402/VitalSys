@@ -91,7 +91,7 @@ class CitaController extends Controller
                 'fec_fin' => 'required|date_format:Y-m-d\TH:i',
                 'sala_id' => 'required|numeric',
                 'tipo_consulta_id' => 'required|numeric',
-                'observaciones' => 'required|string|min:5',
+                'observaciones' => 'required|string|max:255',
             ], [
                 'medico_id.required' => 'Debes seleccionar un médico para la cita.',
                 'medico_id.numeric' => 'El médico debe ser válido.',
@@ -107,31 +107,50 @@ class CitaController extends Controller
                 'tipo_consulta_id.numeric' => 'El tipo de consulta debe ser válido.',
                 'observaciones.required' => 'Las observaciones son obligatorias.',
                 'observaciones.string' => 'Las observaciones deben ser texto válido.',
-                'observaciones.min' => 'Las observaciones deben tener al menos 5 caracteres.',
+                'observaciones.max' => 'Las observaciones no pueden superar los 255 caracteres.',
             ]);
 
-            // Asegurar que 'estado' exista (fallback a 'Pendiente')
-            if (!isset($validated['estado']) || empty($validated['estado'])) {
-                $validated['estado'] = $request->input('estado', 'Pendiente');
-            }
+            // Guardar siempre como cita pendiente al registrar
+            $validated['estado'] = 'Pendiente';
+            $validated['fec_fin'] = \Carbon\Carbon::parse($validated['fec_inicio'])->copy()->addMinutes(15)->format('Y-m-d\TH:i');
 
             $cita = Cita::create($validated);
 
             if($cita){
                 \Log::info('Cita creada:', $cita->toArray());
+
+                if ($request->expectsJson()) {
+                    return response()->json('Cita creada correctamente', 200);
+                }
+
                 Flash::success('¡Cita creada correctamente! La cita se ha registrado en el sistema.');
                 return redirect()->route('citas.index');
             }else{
                 \Log::error('Error al crear cita');
+
+                if ($request->expectsJson()) {
+                    return response()->json('Error al crear la cita.', 500);
+                }
+
                 Flash::error('Error al crear la cita.');
                 return redirect()->back();
             }
         } catch (\Illuminate\Validation\ValidationException $e) {
             \Log::error('Errores de validación:', $e->errors());
+
+            if ($request->expectsJson()) {
+                return response()->json($e->errors(), 422);
+            }
+
             Flash::error('Datos incompletos o inválidos. Por favor, completa todos los campos.');
             return redirect()->back()->withInput();
         } catch (\Throwable $th) {
             \Log::error('Error al crear cita:', ['message' => $th->getMessage(), 'file' => $th->getFile(), 'line' => $th->getLine()]);
+
+            if ($request->expectsJson()) {
+                return response()->json($th->getMessage(), 500);
+            }
+
             Flash::error('Error inesperado al crear la cita: ' . $th->getMessage());
             return redirect()->back();
         }
@@ -167,7 +186,12 @@ class CitaController extends Controller
                 return response()->json('Cita no encontrada', 404);
             }
 
-            $cita->fill($request->all());
+            $data = $request->all();
+            if (!empty($data['fec_inicio'])) {
+                $data['fec_fin'] = \Carbon\Carbon::parse($data['fec_inicio'])->copy()->addMinutes(15)->format('Y-m-d\TH:i');
+            }
+
+            $cita->fill($data);
 
             if($cita->save()){
                 $status = 200;
@@ -184,6 +208,19 @@ class CitaController extends Controller
 
     public function destroy() {
 
+    }
+
+    public function concluir($id) {
+        $cita = Cita::find($id);
+
+        if(!$cita){
+            return response()->json('Cita no encontrada', 404);
+        }
+
+        $cita->estado = 'Concluido';
+        $cita->save();
+
+        return response()->json('Cita marcada como concluida correctamente');
     }
 
     public function cancelar($id) {

@@ -1,3 +1,4 @@
+@'
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -22,8 +23,6 @@
         .badge-no        { background:#e2e3e5; color:#383d41; }
         .badge-atendido  { background:#d4edda; color:#155724; }
         .badge-pendiente { background:#fff3cd; color:#856404; }
-        .enfermedades { padding: 6px 10px; }
-        .enfermedad-tag { display: inline-block; background: #e8f8fb; color: #17a2b8; border: 1px solid #17a2b8; padding: 3px 10px; border-radius: 10px; font-size: 10px; margin: 2px; }
         .tabla-citas { width: 100%; border-collapse: collapse; font-size: 10.5px; }
         .tabla-citas thead tr { background-color: #17a2b8; color: white; }
         .tabla-citas thead th { padding: 8px 10px; text-align: left; font-weight: bold; }
@@ -103,17 +102,6 @@
     @endif
 
     <div class="seccion">
-        <div class="seccion-titulo">Tipos de Enfermedad</div>
-        <div class="enfermedades">
-            @forelse($paciente->tiposDeEnfermedad as $enfermedad)
-                <span class="enfermedad-tag">{{ $enfermedad->tipo_de_enfermedad }} - {{ $enfermedad->etapa_enfermedad }}</span>
-            @empty
-                <span style="color:#999; font-style:italic;">Sin enfermedades registradas</span>
-            @endforelse
-        </div>
-    </div>
-
-    <div class="seccion">
         <div class="seccion-titulo">Resumen de Consultas</div>
         <table class="resumen-grid">
             <tr>
@@ -179,3 +167,4 @@
 
 </body>
 </html>
+'@ | Out-File -FilePath "resources\views\pacientes\historial-pdf.blade.php" -Encoding utf8 -NoNewline

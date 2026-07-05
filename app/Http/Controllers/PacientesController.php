@@ -1,8 +1,6 @@
 <?php
 
-
 namespace App\Http\Controllers;
-
 
 use DB;
 use App\Models\Paciente;
@@ -10,37 +8,71 @@ use App\Models\Ciudad;
 use App\Models\TipoDeEnfermedad;
 use App\Models\Departamento;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Session;
 use Barryvdh\DomPDF\Facade\Pdf;
 
-
 class PacientesController extends Controller
 {
+    private function buildPacientePayload(array $data): array
+    {
+        $availableColumns = Schema::getColumnListing('pacientes');
+        $payload = [];
+        $aliases = [
+            'tiene_IPS' => 'tiene_ips',
+        ];
+
+        foreach ($data as $key => $value) {
+            $column = $aliases[$key] ?? $key;
+
+            if (in_array($column, $availableColumns, true)) {
+                $payload[$column] = $value;
+            }
+        }
+
+        return $payload;
+    }
+
+    private function getTipoEnfermedades()
+    {
+        try {
+            if (!class_exists(TipoDeEnfermedad::class)) {
+                return collect([]);
+            }
+
+            $candidateTables = ['tipo_de_enfermedades', 'tipo_enfermedades', 'tipos_de_enfermedad', 'tipos_enfermedad'];
+            if (!collect($candidateTables)->contains(fn ($table) => Schema::hasTable($table))) {
+                return collect([]);
+            }
+
+            return TipoDeEnfermedad::query()->get();
+        } catch (\Throwable $e) {
+            return collect([]);
+        }
+    }
+
     public function index()
     {
         $pacientes = Paciente::all();
         return view('pacientes.index', compact('pacientes'));
     }
 
-
     public function nuevo(){
         $paciente = DB::table("pacientes")->latest()->first();
         $departamentos = Departamento::all();
-        $enfermedad = TipoDeEnfermedad::all();
+        $enfermedad = $this->getTipoEnfermedades();
         return view('pacientes.RegistroPaciente', compact('paciente','departamentos','enfermedad'));
     }
-
 
     public function error(){
         $datos = session('datos');
         $ciudad = Ciudad::where('departamento_id', $datos['departamento'])->get();
         $depa = $datos["departamento"];
         $departamentos = Departamento::all();
-        $enfermedad = TipoDeEnfermedad::all();
+        $enfermedad = $this->getTipoEnfermedades();
         $paciente = DB::table("pacientes")->latest()->first();
         return view('pacientes.Registroerror', compact('paciente','datos','departamentos','enfermedad','depa','ciudad'));
     }
-
 
     public function obtenerCiudades($departamentoId)
     {
@@ -51,7 +83,6 @@ class PacientesController extends Controller
             return response()->json(['error' => 'Error al obtener ciudades: ' . $e->getMessage()], 500);
         }
     }
-
 
     public function crear(Request $request){
         $request->validate([
@@ -65,7 +96,6 @@ class PacientesController extends Controller
             'edad' => 'required|numeric',
             'sexo' => 'required',
             'tiene_IPS' => 'required',
-            'tipo_enfermedad' => 'required|array|min:1',
         ], [
             'cod_paciente.required' => 'El código del paciente es obligatorio.',
             'nombre.required' => 'El nombre es obligatorio.',
@@ -78,7 +108,6 @@ class PacientesController extends Controller
             'edad.numeric' => 'La edad debe ser un número.',
             'sexo.required' => 'El sexo es obligatorio.',
             'tiene_IPS.required' => 'El campo IPS es obligatorio.',
-            'tipo_enfermedad.required' => 'Debe seleccionar al menos un tipo de enfermedad.',
         ]);
 
         $datos = $request->all();
@@ -88,7 +117,6 @@ class PacientesController extends Controller
         $doc = DB::table("pacientes")->where('num_doc', '=', $docu)->get()->first();
         $cod = DB::table("pacientes")->where('cod_paciente', '=', $codi)->get()->first();
 
-
         if($doc != null && $cod != null){
             return redirect()->route('registro-paciente-e')->with(['mensaje' => 'El numero de documento y el codigo ya existen, por favor reviselo', 'datos' => $datos]);
         } else if($doc){
@@ -96,42 +124,12 @@ class PacientesController extends Controller
         } else if($cod){
             return redirect()->route('registro-paciente-e')->with(['mensaje' => 'El codigo de paciente ya existe, por favor reviselo', 'datos' => $datos]);
         } else {
-            $opciones = $request->input('tipo_enfermedad');
-            Paciente::create([
-                'cod_paciente' => $request->input('cod_paciente'),
-                'nombre'       => $request->input('nombre'),
-                'apellido'     => $request->input('apellido'),
-                'num_doc'      => $request->input('num_doc'),
-                'ciudad'       => $request->input('ciudad'),
-                'departamento' => $request->input('departamento'),
-                'direccion'    => $request->input('direccion'),
-                'edad'         => $request->input('edad'),
-                'sexo'         => $request->input('sexo'),
-                'tiene_ips'    => $request->input('tiene_IPS'),
-                'diagnostico'  => $request->input('diagnostico'),
-                'comentario'   => $request->input('comentario'),
-            ]);
-
-
-            foreach ($opciones as $op){
-                if($paciente){
-                    DB::table('paciente_tipo_enfermedad')->insert([
-                        'paciente_id'       => $paciente->id_paciente + 1,
-                        'tipo_enfermedad_id' => $op
-                    ]);
-                } else {
-                    DB::table('paciente_tipo_enfermedad')->insert([
-                        'paciente_id'       => 1,
-                        'tipo_enfermedad_id' => $op
-                    ]);
-                }
-            }
-
+            $payload = $this->buildPacientePayload($request->all());
+            $pacienteCreado = Paciente::create($payload);
 
             return redirect()->route('pacientes.index')->with('mensaje', 'Se guardo correctamente!');
         }
     }
-
 
     public function edit($id)
     {
@@ -139,32 +137,18 @@ class PacientesController extends Controller
         return view('pacientes.edit', compact('paciente'));
     }
 
-
     public function show(string $id)
     {
         //
     }
 
-
     public function actualizar(Request $request, $id)
     {
-        $paciente = Paciente::find($id);
-        $paciente->update([
-            'cod_paciente' => $request->input('cod_paciente'),
-            'nombre'       => $request->input('nombre'),
-            'apellido'     => $request->input('apellido'),
-            'num_doc'      => $request->input('num_doc'),
-            'ciudad'       => $request->input('ciudad'),
-            'departamento' => $request->input('departamento'),
-            'direccion'    => $request->input('direccion'),
-            'edad'         => $request->input('edad'),
-            'sexo'         => $request->input('sexo'),
-            'tiene_ips'    => $request->input('tiene_IPS'),
-            'comentario'   => $request->input('comentario'),
-        ]);
+        $paciente = Paciente::findOrFail($id);
+        $payload = $this->buildPacientePayload($request->all());
+        $paciente->update($payload);
         return redirect()->route('pacientes.index')->with('mensaje', 'Se guardo correctamente!');
     }
-
 
     public function eliminar($id)
     {
@@ -173,26 +157,21 @@ class PacientesController extends Controller
         return redirect()->route('pacientes.index');
     }
 
-
     public function reportes(){
         $pacientes = DB::table('pacientes')->get();
         return view('pacientes.reportes', compact('pacientes'));
     }
 
-
     public function historialPdf($id)
     {
         $paciente = Paciente::with([
-            'tiposDeEnfermedad',
             'citas.medico',
             'citas.sala',
             'citas.tipoConsulta'
         ])->findOrFail($id);
 
-
         $pdf = Pdf::loadView('pacientes.historial-pdf', compact('paciente'));
         $pdf->setPaper('A4', 'portrait');
-
 
         return $pdf->download('historial-'.$paciente->num_doc.'.pdf');
     }

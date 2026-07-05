@@ -71,6 +71,12 @@
                 <tbody>
                     @if(isset($citas) && count($citas) > 0)
                         @foreach($citas as $cita)
+                        @php
+                            $estado = $cita->estado;
+                            if ($estado == 'Pendiente' && \Carbon\Carbon::parse($cita->fec_fin)->lte(now())) {
+                                $estado = 'Concluido';
+                            }
+                        @endphp
                         <tr data-medico-id="{{ $cita->medico_id }}">
                             <td>{{ $cita->id_cita }}</td>
                             <td>{{ $cita->paciente->nombre ?? '-' }} {{ $cita->paciente->apellido ?? '' }}</td>
@@ -78,10 +84,12 @@
                             <td>{{ \Carbon\Carbon::parse($cita->fec_inicio)->format('d/m/Y H:i') }}</td>
                             <td>{{ \Carbon\Carbon::parse($cita->fec_fin)->format('d/m/Y H:i') }}</td>
                             <td>
-                                @if($cita->estado == 'atendido')
+                                @if($estado == 'atendido')
                                     <span class="badge badge-success px-2 py-1"><i class="fas fa-check-circle mr-1"></i>Atendido</span>
                                 @elseif($cita->estado == 'Pendiente')
                                     <span class="badge badge-warning px-2 py-1"><i class="fas fa-clock mr-1"></i>Pendiente</span>
+                                @elseif($cita->estado == 'Concluido' || $cita->estado == 'concluido')
+                                    <span class="badge badge-info px-2 py-1"><i class="fas fa-check-double mr-1"></i>Concluido</span>
                                 @elseif($cita->estado == 'Cancelado')
                                     <span class="badge badge-danger px-2 py-1"><i class="fas fa-times-circle mr-1"></i>Cancelado</span>
                                 @else
@@ -89,9 +97,12 @@
                                 @endif
                             </td>
                             <td>
-                                @if($cita->estado == 'Pendiente')
+                                @if($estado == 'Pendiente')
                                     <button class="btn btn-sm btn-info" title="Reagendar" onclick="reagendarCita({{ $cita->id_cita }})">
                                         <i class="fas fa-calendar-day"></i>
+                                    </button>
+                                    <button class="btn btn-sm btn-success" title="Concluir" onclick="concluirCita({{ $cita->id_cita }})">
+                                        <i class="fas fa-check"></i>
                                     </button>
                                     <button class="btn btn-sm btn-danger" title="Cancelar" onclick="cancelarCita({{ $cita->id_cita }})">
                                         <i class="fas fa-ban"></i>
@@ -132,7 +143,6 @@
                 <form id="formNuevo" action="{{ route('citas.store') }}" method="POST">
                     @csrf
                     <input type="hidden" name="idx" value="-1" id="idx">
-                    <input type="hidden" name="estado" id="estado" value="Pendiente">
 
                     <p class="section-title"><i class="fas fa-user-md mr-1"></i> Información Médica</p>
                     <div class="row">
@@ -192,7 +202,7 @@
                 <button type="button" class="btn btn-secondary" id="btnCancelar" data-dismiss="modal" style="border-radius:8px;">
                     <i class="fas fa-times mr-1"></i> Cancelar
                 </button>
-                <button type="submit" id="btnGuardar" class="btn text-white" onclick="this.disabled=true; this.form.submit();" style="background:linear-gradient(135deg,#17a2b8,#138496);border-radius:8px;border:none;">
+                <button type="button" id="btnGuardar" class="btn text-white" style="background:linear-gradient(135deg,#17a2b8,#138496);border-radius:8px;border:none;">
                     <i class="fas fa-save mr-1"></i> Guardar Cita
                 </button>
             </div>
@@ -290,6 +300,183 @@
 
     const tipoConsultasData = {!! json_encode($tipoConsultas->map(fn($t) => ['id' => $t->id_tipo_consulta, 'descripcion' => $t->descripcion, 'duracion' => $t->duracion])->values()->all()) !!};
 
+    function mostrarCargando(mostrar) {
+        const overlay = document.getElementById('cargando');
+        if (overlay) {
+            overlay.style.display = mostrar ? 'flex' : 'none';
+        }
+    }
+
+    function guardarCitaActual() {
+        const formulario = document.querySelector('#formNuevo');
+        const btnGuardar = document.getElementById('btnGuardar');
+        const doctorInput = document.getElementById('doctor_nombre');
+        const doctorIdInput = document.getElementById('medico_id');
+        const pacienteInput = document.getElementById('paciente_codigo');
+        const pacienteIdInput = document.getElementById('paciente_id');
+        const salaInput = document.getElementById('sala_nombre');
+        const salaIdInput = document.getElementById('sala_id');
+        const tipoConsultaInput = document.getElementById('tipo_consulta_nombre');
+        const tipoConsultaIdInput = document.getElementById('tipo_consulta_id');
+
+        if (!formulario || !btnGuardar) {
+            console.error('No se encontraron elementos del formulario de cita.');
+            return;
+        }
+
+        btnGuardar.disabled = true;
+        btnGuardar.innerHTML = '<span class="spinner-border spinner-border-sm mr-2" role="status" aria-hidden="true"></span> Guardando...';
+
+        document.querySelectorAll('.error-highlight').forEach(el => el.classList.remove('error-highlight'));
+        const existingErrorPanel = document.querySelector('.error-panel');
+        if (existingErrorPanel) existingErrorPanel.remove();
+
+        let url;
+        let id = document.getElementById('idx').value;
+        let doctor = doctorIdInput.value;
+        let doctorNombre = doctorInput.value.trim();
+        let fechaIni = document.getElementById('fechaHoraIni').value;
+        const fechaFinCalculado = fechaIni ? sum15Minutes(fechaIni) : '';
+        document.getElementById('fechaHoraFin').value = fechaFinCalculado;
+        let fechaFin = fechaFinCalculado;
+        let sala = salaIdInput.value;
+        let paciente = pacienteIdInput.value;
+        let pacienteCodigo = pacienteInput.value.trim();
+        let tipo = tipoConsultaIdInput.value;
+        let entreCitas = document.getElementById('entreCitas').checked ? 1 : 0;
+        let notas = document.getElementById('notas').value;
+
+        if (!doctor && doctorNombre) {
+            const doctorEncontrado = buscarDoctorPorMatricula(doctorNombre);
+            if (doctorEncontrado) {
+                doctor = doctorEncontrado.id;
+                doctorIdInput.value = doctorEncontrado.id;
+            }
+        }
+
+        if (!paciente && pacienteCodigo) {
+            const pacienteEncontrado = buscarPacientePorCodigo(pacienteCodigo);
+            if (pacienteEncontrado) {
+                paciente = pacienteEncontrado.id;
+                pacienteIdInput.value = pacienteEncontrado.id;
+            }
+        }
+
+        if (!sala && salaInput.value) {
+            const salaEncontrada = buscarSalaPorNombre(salaInput.value);
+            if (salaEncontrada) {
+                sala = salaEncontrada.id;
+                salaIdInput.value = salaEncontrada.id;
+            }
+        }
+
+        if (!tipo && tipoConsultaInput.value) {
+            const tipoEncontrado = buscarTipoConsultaPorNombre(tipoConsultaInput.value);
+            if (tipoEncontrado) {
+                tipo = tipoEncontrado.id;
+                tipoConsultaIdInput.value = tipoEncontrado.id;
+            }
+        }
+
+        const erroresCliente = validarFormularioCliente(doctor, fechaIni, fechaFin, sala, paciente, tipo, notas, pacienteCodigo);
+        if (erroresCliente.length > 0) {
+            mostrarErroresValidacion({ error: true, message: 'Datos incompletos', details: erroresCliente });
+            btnGuardar.disabled = false;
+            btnGuardar.innerHTML = '<i class="fas fa-save mr-1"></i> Guardar Cita';
+            return;
+        }
+
+        const datos = {
+            medico_id: doctor,
+            paciente_id: paciente,
+            fec_inicio: fechaIni,
+            fec_fin: fechaFin,
+            estado: 'Pendiente',
+            sala_id: sala,
+            tipo_consulta_id: tipo,
+            entreCitas: entreCitas,
+            observaciones: notas,
+        };
+
+        url = id == '-1' ? '/citas' : '/citas/actualizar';
+        const tokenElement = document.querySelector('meta[name="csrf-token"]');
+        const csrfToken = tokenElement ? tokenElement.getAttribute('content') : '';
+
+        document.getElementById('medico_id').value = doctor;
+        document.getElementById('paciente_id').value = paciente;
+        document.getElementById('sala_id').value = sala;
+        document.getElementById('tipo_consulta_id').value = tipo;
+        document.getElementById('fechaHoraIni').value = fechaIni;
+        document.getElementById('fechaHoraFin').value = fechaFin;
+        document.getElementById('notas').value = notas;
+        document.getElementById('entreCitas').checked = Boolean(entreCitas);
+
+        mostrarCargando(true);
+
+        fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'X-CSRF-TOKEN': csrfToken,
+            },
+            body: JSON.stringify(datos),
+        })
+        .then(async response => {
+            const text = await response.text();
+            let payload = null;
+            try {
+                payload = text ? JSON.parse(text) : null;
+            } catch (e) {
+                payload = text;
+            }
+
+            if (!response.ok) {
+                throw new Error(typeof payload === 'string' ? payload : (payload?.message || 'No se pudo guardar la cita'));
+            }
+
+            return payload;
+        })
+        .then(data => {
+            mostrarCargando(false);
+            const mensaje = typeof data === 'string' ? data : 'Cita guardada correctamente';
+            Swal.fire({
+                title: '¡Cita registrada!',
+                html: `<p>${mensaje}</p><p>La cita se guardó correctamente en el sistema.</p>`,
+                icon: 'success',
+                confirmButtonText: 'Perfecto',
+                background: '#f4fcf6',
+                iconColor: '#28a745',
+                customClass: {
+                    popup: 'rounded-4 shadow-sm',
+                    confirmButton: 'btn btn-success px-4'
+                }
+            }).then(() => {
+                location.reload();
+            });
+        })
+        .catch(err => {
+            mostrarCargando(false);
+            console.error('Error al guardar cita:', err);
+            Swal.fire({
+                title: 'No se pudo guardar la cita',
+                html: err.message || 'Por favor, revisa los datos e intenta nuevamente.',
+                icon: 'error',
+                confirmButtonText: 'Cerrar',
+                background: '#fff5f5',
+                iconColor: '#dc3545',
+                customClass: {
+                    popup: 'rounded-4 shadow-sm',
+                    confirmButton: 'btn btn-danger px-4'
+                }
+            });
+            btnGuardar.disabled = false;
+            btnGuardar.innerHTML = '<i class="fas fa-save mr-1"></i> Guardar Cita';
+        });
+    }
+
+    window.guardarCitaActual = guardarCitaActual;
+
     document.addEventListener('DOMContentLoaded', function() {
         let formulario = document.querySelector('#formNuevo');
         const btnGuardar = document.getElementById('btnGuardar');
@@ -318,183 +505,15 @@
             return;
         }
 
-        btnGuardar.addEventListener('click', function() {
-            console.log('Botón guardar presionado');
-            
-            // Limpiar errores anteriores
-            document.querySelectorAll('.error-highlight').forEach(el => el.classList.remove('error-highlight'));
-            const existingErrorPanel = document.querySelector('.error-panel');
-            if (existingErrorPanel) existingErrorPanel.remove();
-
-            let url;
-            let id = document.getElementById('idx').value;
-            let doctor = doctorIdInput.value;
-            let doctorNombre = doctorInput.value.trim();
-            let fechaIni = document.getElementById('fechaHoraIni').value;
-            let fechaFin = document.getElementById('fechaHoraFin').value;
-            let sala = salaIdInput.value;
-            let paciente = pacienteIdInput.value;
-            let pacienteCodigo = pacienteInput.value.trim();
-            let tipo = tipoConsultaIdInput.value;
-            let entreCitas = document.getElementById('entreCitas').checked ? 1 : 0;
-            let notas = document.getElementById('notas').value;
-
-            if (!doctor && doctorNombre) {
-                const doctorEncontrado = buscarDoctorPorMatricula(doctorNombre);
-                if (doctorEncontrado) {
-                    doctor = doctorEncontrado.id;
-                    doctorIdInput.value = doctorEncontrado.id;
-                }
-            }
-
-            if (!paciente && pacienteCodigo) {
-                const pacienteEncontrado = buscarPacientePorCodigo(pacienteCodigo);
-                if (pacienteEncontrado) {
-                    paciente = pacienteEncontrado.id;
-                    pacienteIdInput.value = pacienteEncontrado.id;
-                }
-            }
-
-            if (!sala && salaInput.value) {
-                const salaEncontrada = buscarSalaPorNombre(salaInput.value);
-                if (salaEncontrada) {
-                    sala = salaEncontrada.id;
-                    salaIdInput.value = salaEncontrada.id;
-                }
-            }
-
-            if (!tipo && tipoConsultaInput.value) {
-                const tipoEncontrado = buscarTipoConsultaPorNombre(tipoConsultaInput.value);
-                if (tipoEncontrado) {
-                    tipo = tipoEncontrado.id;
-                    tipoConsultaIdInput.value = tipoEncontrado.id;
-                }
-            }
-
-            console.log('Valores del formulario:', {doctor, fechaIni, fechaFin, sala, paciente, tipo, notas, pacienteCodigo});
-
-            // Validación del lado del cliente
-            const erroresCliente = validarFormularioCliente(doctor, fechaIni, fechaFin, sala, paciente, tipo, notas, pacienteCodigo);
-            console.log('Errores de validación:', erroresCliente);
-            
-            if (erroresCliente.length > 0) {
-                console.log('Mostrando errores de validación');
-                mostrarErroresValidacion({
-                    error: true,
-                    message: 'Datos incompletos',
-                    details: erroresCliente
-                });
-                return;
-            }
-
-            let datos = {
-                medico_id: doctor,
-                paciente_id: paciente,
-                fec_inicio: fechaIni,
-                fec_fin: fechaFin,
-                estado: 'Pendiente',
-                sala_id: sala,
-                tipo_consulta_id: tipo,
-                entreCitas: entreCitas,
-                observaciones: notas,
-            };
-
-            url = id == '-1' ? '/citas' : '/citas/actualizar';
-            if(id != '-1') datos.id_cita = id;
-
-            mostrarCargando(true);
-
-            const csrfTokenElement = document.querySelector('meta[name="csrf-token"]');
-            if (!csrfTokenElement) {
-                mostrarCargando(false);
-                Swal.fire({
-                    title: 'Error interno',
-                    html: 'No se encontró el token CSRF. Recarga la página e intenta de nuevo.',
-                    icon: 'error',
-                    confirmButtonText: 'Aceptar',
-                    background: '#fff5f5',
-                    iconColor: '#dc3545',
-                    customClass: {
-                        popup: 'rounded-4 shadow-sm',
-                        confirmButton: 'btn btn-danger px-4'
-                    }
-                });
-                return;
-            }
-
-            fetch(url, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': csrfTokenElement.getAttribute('content'),
-                },
-                body: JSON.stringify(datos),
-            })
-            .then(res => {
-                if (!res.ok) {
-                    throw new Error(`HTTP error! status: ${res.status}`);
-                }
-                return res.json();
-            })
-            .then(data => {
-                mostrarCargando(false);
-
-                // Verificar si es una respuesta de éxito
-                if (typeof data === 'string' && (data.includes('correctamente'))) {
-                    Swal.fire({
-                        title: '¡Cita registrada!',
-                        html: `<p>${data}</p><p>La cita se guardó correctamente en el sistema.</p>`,
-                        icon: 'success',
-                        confirmButtonText: 'Perfecto',
-                        background: '#f4fcf6',
-                        iconColor: '#28a745',
-                        customClass: {
-                            popup: 'rounded-4 shadow-sm',
-                            confirmButton: 'btn btn-success px-4'
-                        }
-                    }).then(() => {
-                        location.reload();
-                    });
-                } else if (data.error && data.details) {
-                    // Mostrar errores de validación del servidor
-                    mostrarErroresValidacion(data);
-                } else {
-                    // Error genérico
-                    Swal.fire({
-                        position: 'center',
-                        icon: 'error',
-                        title: 'Error',
-                        text: typeof data === 'string' ? data : 'Ha ocurrido un error inesperado',
-                        showConfirmButton: false,
-                        timer: 3000,
-                        background: '#f8d7da',
-                        color: '#721c24'
-                    });
-                }
-            })
-            .catch(err => {
-                mostrarCargando(false);
-                console.error('Error:', err);
-                Swal.fire({
-                    title: 'No se pudo guardar la cita',
-                    html: 'Por favor, revisa los datos e intenta nuevamente.',
-                    icon: 'error',
-                    confirmButtonText: 'Cerrar',
-                    background: '#fff5f5',
-                    iconColor: '#dc3545',
-                    customClass: {
-                        popup: 'rounded-4 shadow-sm',
-                        confirmButton: 'btn btn-danger px-4'
-                    }
-                });
-            });
+        btnGuardar.addEventListener('click', function(event) {
+            event.preventDefault();
+            guardarCitaActual();
         });
 
         btnCancelar.addEventListener('click', function() {
             formulario.reset();
         });
 
-        // Limpiar errores cuando el usuario interactúa con los campos
         document.querySelectorAll('#formNuevo input, #formNuevo select, #formNuevo textarea').forEach(element => {
             element.addEventListener('input', function() {
                 this.classList.remove('error-highlight');
@@ -509,12 +528,8 @@
 
         if (fechaHoraIni) {
             fechaHoraIni.addEventListener('change', () => {
-                let fechaHoraFinElement = document.getElementById('fechaHoraFin');
                 if (fechaHoraIni.value) {
-                    // Solo autocompletar si el campo de fin está vacío
-                    if (fechaHoraFinElement && !fechaHoraFinElement.value) {
-                        fechaHoraFinElement.value = sum15Minutes(fechaHoraIni.value);
-                    }
+                    fechaHoraFin.value = sum15Minutes(fechaHoraIni.value);
                 }
             });
         }
@@ -525,13 +540,14 @@
                 const fechaFin = new Date(fechaHoraFin.value);
 
                 if (fechaIni && fechaFin && fechaFin <= fechaIni) {
-                    // Mostrar error y resetear
                     Swal.fire({
                         icon: 'warning',
                         title: 'Fecha inválida',
                         text: 'La fecha de fin debe ser posterior a la fecha de inicio',
                         confirmButtonText: 'Entendido'
                     });
+                    fechaHoraFin.value = sum15Minutes(fechaHoraIni.value);
+                } else if (fechaHoraIni.value) {
                     fechaHoraFin.value = sum15Minutes(fechaHoraIni.value);
                 }
             });
@@ -712,8 +728,8 @@
         if (!tipo || tipo === '') {
             errores.push('Debes seleccionar un tipo de consulta.');
         }
-        if (!notas || notas.trim().length < 5) {
-            errores.push('Las observaciones son obligatorias y deben tener al menos 5 caracteres.');
+        if (!notas || notas.trim().length === 0) {
+            errores.push('Las observaciones son obligatorias.');
         }
 
         return errores;
@@ -721,8 +737,7 @@
 
     function mostrarErroresValidacion(data) {
         console.log('mostrarErroresValidacion llamado con:', data);
-        
-        // Limpiar errores anteriores
+
         document.querySelectorAll('.error-highlight').forEach(el => el.classList.remove('error-highlight'));
         const existingErrorPanel = document.querySelector('.error-panel');
         if (existingErrorPanel) existingErrorPanel.remove();
@@ -733,16 +748,15 @@
             return;
         }
 
-        // Crear panel de error atractivo
         const errorPanel = document.createElement('div');
         errorPanel.className = 'alert error-panel mb-4';
-        
+
         const detalles = data.details || [];
         let listaHTML = '';
         if (Array.isArray(detalles)) {
             listaHTML = detalles.map(error => `<li>${error}</li>`).join('');
         }
-        
+
         errorPanel.innerHTML = `
             <div class="text-center mb-3">
                 <i class="fas fa-exclamation-triangle error-icon"></i>
@@ -759,9 +773,8 @@
                 </small>
             </div>
         `;
-        
+
         console.log('Insertando panel de error');
-        // Insertar el panel de error al inicio del modal body
         const firstChild = modalBody.querySelector('.position-absolute');
         if (firstChild) {
             modalBody.insertBefore(errorPanel, firstChild);
@@ -769,10 +782,8 @@
             modalBody.insertBefore(errorPanel, modalBody.firstChild);
         }
 
-        // Resaltar campos con errores
         resaltarCamposConErrores(data.details);
 
-        // Auto-remover el panel después de 8 segundos
         setTimeout(() => {
             if (errorPanel.parentNode) {
                 errorPanel.remove();
@@ -782,11 +793,11 @@
 
     function resaltarCamposConErrores(errors) {
         if (!errors || !Array.isArray(errors)) return;
-        
+
         errors.forEach(error => {
             console.log('Procesando error:', error);
             const errorLower = error.toLowerCase();
-            
+
             if (errorLower.includes('médico')) {
                 document.getElementById('doctor_nombre').classList.add('error-highlight');
             }
@@ -812,8 +823,6 @@
     }
 
     function abrirBusquedaDoctor() {
-        console.log('abrirBusquedaDoctor() llamado');
-        console.log('medicosData:', medicosData);
         $('#buscarDoctorModal').modal('show');
         const input = document.getElementById('doctorSearchInput');
         if (input) {
@@ -854,21 +863,14 @@
     }
 
     function actualizarResultadosDoctores(query) {
-        console.log('actualizarResultadosDoctores() - query:', query);
-        console.log('medicosData:', medicosData);
         const container = document.getElementById('doctorSearchResults');
-        if (!container) {
-            console.error('No se encontró container doctorSearchResults');
-            return;
-        }
+        if (!container) return;
         const texto = query.trim().toLowerCase();
         const resultados = medicosData.filter(medico => {
-            return medico.nombre.toLowerCase().includes(texto) 
+            return medico.nombre.toLowerCase().includes(texto)
                 || medico.registro.toLowerCase().includes(texto)
                 || medico.especialidad.toString().toLowerCase().includes(texto);
         });
-
-        console.log('Resultados encontrados:', resultados);
 
         container.innerHTML = resultados.length > 0 ? resultados.map(medico => {
             return `<button type="button" class="list-group-item list-group-item-action" onclick="seleccionarDoctor(${medico.id})">${medico.registro} - ${medico.nombre}</button>`;
@@ -876,13 +878,8 @@
     }
 
     function actualizarResultadosPacientes(query) {
-        console.log('actualizarResultadosPacientes() - query:', query);
-        console.log('pacientesData:', pacientesData);
         const container = document.getElementById('pacienteSearchResults');
-        if (!container) {
-            console.error('No se encontró container pacienteSearchResults');
-            return;
-        }
+        if (!container) return;
         const texto = query.trim().toLowerCase();
         const resultados = pacientesData.filter(paciente => {
             return paciente.num_doc.toLowerCase().includes(texto)
@@ -890,27 +887,18 @@
                 || paciente.apellido.toLowerCase().includes(texto);
         });
 
-        console.log('Resultados encontrados:', resultados);
-
         container.innerHTML = resultados.length > 0 ? resultados.map(paciente => {
             return `<button type="button" class="list-group-item list-group-item-action" onclick="seleccionarPaciente(${paciente.id})">${paciente.num_doc} - ${paciente.nombre} ${paciente.apellido}</button>`;
         }).join('') : '<div class="text-muted">No se encontraron pacientes.</div>';
     }
 
     function actualizarResultadosSalas(query) {
-        console.log('actualizarResultadosSalas() - query:', query);
-        console.log('salasData:', salasData);
         const container = document.getElementById('salaSearchResults');
-        if (!container) {
-            console.error('No se encontró container salaSearchResults');
-            return;
-        }
+        if (!container) return;
         const texto = query.trim().toLowerCase();
         const resultados = salasData.filter(sala => {
             return sala.tipo.toLowerCase().includes(texto) || sala.numero.toLowerCase().includes(texto);
         });
-
-        console.log('Resultados encontrados:', resultados);
 
         container.innerHTML = resultados.length > 0 ? resultados.map(sala => {
             return `<button type="button" class="list-group-item list-group-item-action" onclick="seleccionarSala(${sala.id})">${sala.tipo} - ${sala.numero}</button>`;
@@ -918,66 +906,75 @@
     }
 
     function actualizarResultadosTipoConsulta(query) {
-        console.log('actualizarResultadosTipoConsulta() - query:', query);
-        console.log('tipoConsultasData:', tipoConsultasData);
         const container = document.getElementById('tipoConsultaSearchResults');
-        if (!container) {
-            console.error('No se encontró container tipoConsultaSearchResults');
-            return;
-        }
+        if (!container) return;
         const texto = query.trim().toLowerCase();
         const resultados = tipoConsultasData.filter(tipo => {
             return tipo.descripcion.toLowerCase().includes(texto) || tipo.duracion.toLowerCase().includes(texto);
         });
-
-        console.log('Resultados encontrados:', resultados);
 
         container.innerHTML = resultados.length > 0 ? resultados.map(tipo => {
             return `<button type="button" class="list-group-item list-group-item-action" onclick="seleccionarTipoConsulta(${tipo.id})">${tipo.descripcion} - ${tipo.duracion}</button>`;
         }).join('') : '<div class="text-muted">No se encontraron tipos.</div>';
     }
 
+    function normalizarTexto(texto) {
+        return (texto || '')
+            .toString()
+            .trim()
+            .toLowerCase()
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .replace(/[^a-z0-9]+/g, ' ')
+            .replace(/\s+/g, ' ')
+            .trim();
+    }
+
     function buscarPacientePorCodigo(texto) {
         if (!texto) return null;
-        const busqueda = texto.trim().toLowerCase();
-        return pacientesData.find(paciente =>
-            paciente.num_doc.toLowerCase() === busqueda
-            || `${paciente.nombre} ${paciente.apellido}`.toLowerCase() === busqueda
-            || paciente.id.toString() === busqueda
-        ) || null;
+        const busqueda = normalizarTexto(texto);
+        return pacientesData.find(paciente => {
+            const numDoc = normalizarTexto(paciente.num_doc);
+            const nombreCompleto = normalizarTexto(`${paciente.nombre} ${paciente.apellido}`);
+            const display = normalizarTexto(`${paciente.num_doc} - ${paciente.nombre} ${paciente.apellido}`);
+            return numDoc === busqueda || nombreCompleto === busqueda || display === busqueda || display.includes(busqueda) || numDoc.includes(busqueda) || nombreCompleto.includes(busqueda);
+        }) || null;
     }
 
     function buscarDoctorPorMatricula(texto) {
-        console.log('buscarDoctorPorMatricula() - texto:', texto);
-        console.log('medicosData:', medicosData);
         if (!texto) return null;
-        const busqueda = texto.trim().toLowerCase();
-        const resultado = medicosData.find(medico =>
-            medico.registro.toLowerCase() === busqueda
-            || medico.nombre.toLowerCase() === busqueda
-            || `${medico.registro} ${medico.nombre}`.toLowerCase() === busqueda
-        ) || null;
-        console.log('Resultado encontrado:', resultado);
-        return resultado;
+        const busqueda = normalizarTexto(texto);
+        return medicosData.find(medico => {
+            const registro = normalizarTexto(medico.registro);
+            const nombre = normalizarTexto(medico.nombre);
+            const display = normalizarTexto(`${medico.registro} - ${medico.nombre}`);
+            const combinado = normalizarTexto(`${medico.registro} ${medico.nombre}`);
+            return registro === busqueda || nombre === busqueda || display === busqueda || combinado === busqueda || display.includes(busqueda) || combinado.includes(busqueda) || registro.includes(busqueda) || nombre.includes(busqueda);
+        }) || null;
     }
 
     function buscarSalaPorNombre(texto) {
         if (!texto) return null;
-        const busqueda = texto.trim().toLowerCase();
-        return salasData.find(sala =>
-            `${sala.tipo} ${sala.numero}`.toLowerCase() === busqueda
-            || sala.tipo.toLowerCase() === busqueda
-            || sala.numero.toLowerCase() === busqueda
-        ) || null;
+        const busqueda = normalizarTexto(texto);
+        return salasData.find(sala => {
+            const tipo = normalizarTexto(sala.tipo);
+            const numero = normalizarTexto(sala.numero);
+            const display = normalizarTexto(`${sala.tipo} - ${sala.numero}`);
+            const combinado = normalizarTexto(`${sala.tipo} ${sala.numero}`);
+            return tipo === busqueda || numero === busqueda || display === busqueda || combinado === busqueda || display.includes(busqueda) || combinado.includes(busqueda) || tipo.includes(busqueda) || numero.includes(busqueda);
+        }) || null;
     }
 
     function buscarTipoConsultaPorNombre(texto) {
         if (!texto) return null;
-        const busqueda = texto.trim().toLowerCase();
-        return tipoConsultasData.find(tipo =>
-            tipo.descripcion.toLowerCase() === busqueda
-            || `${tipo.descripcion} ${tipo.duracion}`.toLowerCase() === busqueda
-        ) || null;
+        const busqueda = normalizarTexto(texto);
+        return tipoConsultasData.find(tipo => {
+            const descripcion = normalizarTexto(tipo.descripcion);
+            const duracion = normalizarTexto(tipo.duracion);
+            const display = normalizarTexto(`${tipo.descripcion} - ${tipo.duracion}`);
+            const combinado = normalizarTexto(`${tipo.descripcion} ${tipo.duracion}`);
+            return descripcion === busqueda || duracion === busqueda || display === busqueda || combinado === busqueda || display.includes(busqueda) || combinado.includes(busqueda) || descripcion.includes(busqueda) || duracion.includes(busqueda);
+        }) || null;
     }
 
     function seleccionarDoctor(id) {
@@ -1024,8 +1021,6 @@
         $('#buscarTipoConsultaModal').modal('hide');
     }
 
-
-    // Función para Cancelar Cita
     function cancelarCita(id) {
         Swal.fire({
             title: '¿Estás seguro?',
@@ -1056,44 +1051,65 @@
         });
     }
 
-    // Función para Reagendar (editar) Cita
+    function concluirCita(id) {
+        Swal.fire({
+            title: '¿Confirmas que quieres marcar esta cita como concluida?',
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonColor: '#28a745',
+            cancelButtonColor: '#d33',
+            confirmButtonText: 'Sí, concluir cita',
+            cancelButtonText: 'No, mantener'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                fetch('/citas/concluir/' + id)
+                    .then(response => response.json())
+                    .then(data => {
+                        Swal.fire('Concluida!', 'La cita ha sido marcada como concluida.', 'success')
+                            .then(() => location.reload());
+                    })
+                    .catch(error => {
+                        Swal.fire('Error', 'No se pudo marcar la cita como concluida.', 'error');
+                    });
+            }
+        });
+    }
+
     function reagendarCita(id) {
-        // Obtenemos los datos de la cita vía AJAX
         fetch('/citas/editar/' + id)
             .then(response => response.json())
             .then(data => {
-                // Rellenamos el formulario del modal
                 document.getElementById('idx').value = data.id_cita;
-                document.getElementById('doctor').value = data.medico_id;
-                
-                // Buscar sala
+                const doctor = medicosData.find(d => d.id === data.medico_id);
+                if (doctor) {
+                    document.getElementById('doctor_nombre').value = doctor.nombre;
+                    document.getElementById('medico_id').value = data.medico_id;
+                }
+
                 const sala = salasData.find(s => s.id === data.sala_id);
                 if (sala) {
                     document.getElementById('sala_nombre').value = `${sala.tipo} - ${sala.numero}`;
                     document.getElementById('sala_id').value = data.sala_id;
                 }
-                
+
                 document.getElementById('fechaHoraIni').value = data.fec_inicio;
                 document.getElementById('fechaHoraFin').value = data.fec_fin;
-                
-                // Buscar paciente
+
                 const paciente = pacientesData.find(p => p.id === data.paciente_id);
                 if (paciente) {
                     document.getElementById('paciente_codigo').value = `${paciente.num_doc} - ${paciente.nombre} ${paciente.apellido}`;
                     document.getElementById('paciente_id').value = data.paciente_id;
                 }
-                
-                // Buscar tipo de consulta
+
                 const tipo = tipoConsultasData.find(t => t.id === data.tipo_consulta_id);
                 if (tipo) {
                     document.getElementById('tipo_consulta_nombre').value = `${tipo.descripcion} - ${tipo.duracion}`;
                     document.getElementById('tipo_consulta_id').value = data.tipo_consulta_id;
                 }
-                
+
                 document.getElementById('entreCitas').checked = data.entreCitas == 1;
                 document.getElementById('notas').value = data.observaciones;
 
-                // Abrimos el modal
                 $('#cargarCita').modal('show');
             })
             .catch(error => {

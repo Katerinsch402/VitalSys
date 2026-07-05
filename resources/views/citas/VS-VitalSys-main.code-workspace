@@ -1,11 +1,11 @@
 {
-	"folders": [
-		{
-			"path": "../../.."
-		},
-		{
-			"path": "../../../../../../../Documents/sistema.admin-maid"
-		}
-	],
-	"settings": {}
+    "folders": [
+        {
+            "path": "../../.."
+        },
+        {
+            "path": "../../../../../../../Documents/sistema.admin-maid"
+        }
+    ],
+    "settings": {}
 }

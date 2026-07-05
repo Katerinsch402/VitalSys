@@ -1,6 +1,5 @@
 @extends('adminlte::page')
 @section('title', 'Nuevo Paciente')
-@section('plugins.Select2', true)
 @section('content_header')
     <div class="d-flex align-items-center">
         <i class="fas fa-hospital-user fa-lg mr-2" style="color:#17a2b8;"></i>
@@ -161,7 +160,7 @@
 
             <hr class="section-divider">
 
-            {{-- INFORMACIÓN MÉDICA --}}
+            {{-- INFORMACIÓN MÉDICA (resumida) --}}
             <p class="section-title"><i class="fas fa-heartbeat mr-1"></i> Información Médica</p>
             <div class="row">
                 <div class="col-md-3 mb-3">
@@ -172,33 +171,10 @@
                         <option value="NO" {{ old('tiene_IPS') == 'NO' ? 'selected' : '' }}>NO</option>
                     </select>
                 </div>
-                    </div>
-                <div class="col-md-6 mb-3">
-                    <label class="form-label">Tipo de Enfermedad</label>
-                    <select multiple name="tipo_enfermedad[]" id="tipo_enfermedad" class="form-control select2">
-                        @foreach($enfermedad as $e)
-                            <option value="{{ $e->id_tipo }}" {{ collect(old('tipo_enfermedad'))->contains($e->id_tipo) ? 'selected' : '' }}>{{ $e->tipo_de_enfermedad }} - {{ $e->etapa_enfermedad }}</option>
-                        @endforeach
-                    </select>
-                </div>
-            </div>
-                <div class="col-md-6 mb-3">
-                    <label class="form-label">Tipo de Enfermedad</label>
-                    <select multiple name="tipo_enfermedad[]" id="tipo_enfermedad" class="form-control select2">
-                        @foreach($enfermedad as $e)
-                            <option value="{{ $e->id_tipo }}" {{ collect(old('tipo_enfermedad'))->contains($e->id_tipo) ? 'selected' : '' }}>{{ $e->tipo_de_enfermedad }} - {{ $e->etapa_enfermedad }}</option>
-                        @endforeach
-                    </select>
-                </div>
-            </div>
-            <div class="row">
-                <div class="col-md-6 mb-3">
-                    <label class="form-label">Diagnóstico</label>
-                    <textarea name="diagnostico" id="diagnostico" rows="4" class="form-control" placeholder="Ingrese el diagnóstico...">{{ old('diagnostico') }}</textarea>
-                </div>
-                <div class="col-md-6 mb-3">
-                    <label class="form-label">Comentario</label>
+                <div class="col-md-9 mb-3">
+                    <label class="form-label">Comentario (opcional)</label>
                     <textarea name="comentario" id="comentario" rows="4" class="form-control" placeholder="Comentarios adicionales...">{{ old('comentario') }}</textarea>
+                    <small class="form-text text-muted">Este campo es opcional; puede completarse más tarde si lo desea.</small>
                 </div>
             </div>
 
@@ -228,7 +204,7 @@
 @endif
 <script>
     $(document).ready(function() {
-        $('.select2').select2();
+        // Select2 removed for this view (not used)
         $('[data-toggle="tooltip"]').tooltip();
 
         // Resaltar campos con errores
